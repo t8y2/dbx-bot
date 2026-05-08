@@ -1,0 +1,5 @@
+name: astrbot_plugin_dbx
+desc: DBX 数据库工具的 QQ 群助手插件，支持版本查询和 Bug 反馈
+version: 1.0.0
+author: t8y2
+repo: https://github.com/t8y2/dbx-bot
