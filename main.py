@@ -8,18 +8,36 @@ from astrbot.api import logger
 GITHUB_REPO = "t8y2/dbx"
 GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}"
 
+DOC_SEARCH_URL = "https://api.github.com/search/code"
+
+COMMANDS = {
+    "/dbx-latest": "查询 DBX 最新版本",
+    "/dbx-star": "查看 DBX 项目统计（Star、Fork、Issue）",
+    "/dbx-doc <关键词>": "搜索 DBX 文档",
+    "/bug <描述>": "提交 Bug 反馈到 GitHub Issue",
+    "/dbx-help": "显示所有可用命令",
+}
+
 
 @register(
     "astrbot_plugin_dbx",
     "t8y2",
     "DBX 数据库工具的 QQ 群助手插件",
-    "1.0.0",
+    "1.1.0",
     f"https://github.com/{GITHUB_REPO}-bot",
 )
 class DBXPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.github_token = os.environ.get("GITHUB_TOKEN", "")
+
+    @filter.command("dbx-help")
+    async def help_cmd(self, event: AstrMessageEvent):
+        """显示所有可用命令"""
+        lines = ["DBX Bot 可用命令:\n"]
+        for cmd, desc in COMMANDS.items():
+            lines.append(f"  {cmd} — {desc}")
+        yield event.plain_result("\n".join(lines))
 
     @filter.command("dbx-latest")
     async def latest_release(self, event: AstrMessageEvent):
@@ -47,6 +65,66 @@ class DBXPlugin(Star):
             f"下载: {url}"
         )
         yield event.plain_result(msg)
+
+    @filter.command("dbx-star")
+    async def repo_stats(self, event: AstrMessageEvent):
+        """查看 DBX 项目统计"""
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                GITHUB_API,
+                headers={"Accept": "application/vnd.github.v3+json"},
+                timeout=10,
+            )
+
+        if resp.status_code != 200:
+            yield event.plain_result("获取项目信息失败，请稍后再试。")
+            return
+
+        data = resp.json()
+        msg = (
+            f"DBX 项目统计:\n"
+            f"  Star: {data.get('stargazers_count', 0)}\n"
+            f"  Fork: {data.get('forks_count', 0)}\n"
+            f"  Open Issues: {data.get('open_issues_count', 0)}\n"
+            f"  语言: {data.get('language', 'N/A')}\n"
+            f"  主页: {data.get('html_url', '')}"
+        )
+        yield event.plain_result(msg)
+
+    @filter.command("dbx-doc")
+    async def search_doc(self, event: AstrMessageEvent):
+        """搜索 DBX 文档"""
+        keyword = event.message_str.strip()
+        if not keyword:
+            yield event.plain_result("请输入搜索关键词，例如: /dbx-doc MCP")
+            return
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                DOC_SEARCH_URL,
+                params={
+                    "q": f"{keyword} repo:{GITHUB_REPO} path:docs/ extension:mdx",
+                    "per_page": 3,
+                },
+                headers={"Accept": "application/vnd.github.v3+json"},
+                timeout=10,
+            )
+
+        if resp.status_code != 200:
+            yield event.plain_result("搜索失败，请稍后再试。")
+            return
+
+        items = resp.json().get("items", [])
+        if not items:
+            yield event.plain_result(f"未找到与「{keyword}」相关的文档。")
+            return
+
+        lines = [f"找到 {len(items)} 篇相关文档:\n"]
+        for item in items:
+            name = item.get("name", "").replace(".mdx", "").replace(".md", "")
+            url = item.get("html_url", "")
+            lines.append(f"  {name}\n  {url}")
+        yield event.plain_result("\n".join(lines))
 
     @filter.command("bug")
     async def report_bug(self, event: AstrMessageEvent):
