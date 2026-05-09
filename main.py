@@ -18,18 +18,43 @@ COMMANDS = {
     "/dbx-help": "显示所有可用命令",
 }
 
+WELCOME_MSG = "\n".join([
+    "━━━━━━━━━━━━━━━",
+    "👋 欢迎加入 DBX 社区!",
+    "━━━━━━━━━━━━━━━",
+    "DBX 是一款开源数据库管理工具",
+    "",
+    "📖 文档: https://dbxio.com/cn",
+    "💻 GitHub: https://github.com/t8y2/dbx",
+    "",
+    "可用命令:",
+    "  /dbx-help — 查看所有命令",
+    "  /dbx-latest — 查询最新版本",
+    "  /bug <描述> — 反馈问题",
+    "━━━━━━━━━━━━━━━",
+])
+
 
 @register(
     "astrbot_plugin_dbx",
     "t8y2",
     "DBX 数据库工具的 QQ 群助手插件",
-    "1.1.0",
+    "1.2.0",
     f"https://github.com/{GITHUB_REPO}-bot",
 )
 class DBXPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.github_token = os.environ.get("GITHUB_TOKEN", "")
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_group_increase(self, event: AstrMessageEvent):
+        """欢迎新成员"""
+        raw = getattr(event.message_obj, "raw_message", None)
+        if not isinstance(raw, dict):
+            return
+        if raw.get("post_type") == "notice" and raw.get("notice_type") == "group_increase":
+            yield event.plain_result(WELCOME_MSG)
 
     @filter.command("dbx-help")
     async def help_cmd(self, event: AstrMessageEvent):
