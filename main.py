@@ -18,21 +18,7 @@ COMMANDS = {
     "/dbx-help": "显示所有可用命令",
 }
 
-WELCOME_MSG = "\n".join([
-    "━━━━━━━━━━━━━━━",
-    "👋 欢迎加入 DBX 社区!",
-    "━━━━━━━━━━━━━━━",
-    "DBX 是一款开源数据库管理工具",
-    "",
-    "📖 文档: https://dbxio.com/cn",
-    "💻 GitHub: https://github.com/t8y2/dbx",
-    "",
-    "可用命令:",
-    "  /dbx-help — 查看所有命令",
-    "  /dbx-latest — 查询最新版本",
-    "  /bug <描述> — 反馈问题",
-    "━━━━━━━━━━━━━━━",
-])
+WELCOME_MSG = "👋 欢迎第 {count} 位成员加入 DBX 社区! 发送 /dbx-help 查看可用命令~"
 
 
 @register(
@@ -54,7 +40,20 @@ class DBXPlugin(Star):
         if not isinstance(raw, dict):
             return
         if raw.get("post_type") == "notice" and raw.get("notice_type") == "group_increase":
-            yield event.plain_result(WELCOME_MSG)
+            group_id = raw.get("group_id", "")
+            count = "?"
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "http://napcat:6099/api/get_group_info",
+                        json={"group_id": group_id},
+                        timeout=5,
+                    )
+                    if resp.status_code == 200:
+                        count = resp.json().get("data", {}).get("member_count", "?")
+            except Exception:
+                pass
+            yield event.plain_result(WELCOME_MSG.format(count=count))
 
     @filter.command("dbx-help")
     async def help_cmd(self, event: AstrMessageEvent):
