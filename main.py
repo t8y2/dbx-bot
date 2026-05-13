@@ -108,6 +108,8 @@ class DBXPlugin(Star):
     async def search_doc(self, event: AstrMessageEvent):
         """搜索 DBX 文档"""
         keyword = event.message_str.strip()
+        if keyword.startswith("dbx-doc"):
+            keyword = keyword[7:].strip()
         if not keyword:
             yield event.plain_result("请输入搜索关键词，例如: /dbx-doc MCP")
             return
@@ -147,8 +149,9 @@ class DBXPlugin(Star):
     async def report_bug(self, event: AstrMessageEvent):
         """提交 Bug 反馈到 GitHub Issue"""
         description = event.message_str.strip()
+        if description.startswith("bug"):
+            description = description[3:].strip()
         if not description:
-            yield event.plain_result("请描述你遇到的问题，例如: /bug 连接 MySQL 时闪退")
             return
 
         if not self.github_token:
