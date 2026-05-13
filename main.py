@@ -32,6 +32,7 @@ class DBXPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.github_token = os.environ.get("GITHUB_TOKEN", "")
+        self.github_pat = os.environ.get("GITHUB_PAT", "")
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_group_increase(self, event: AstrMessageEvent):
@@ -123,6 +124,10 @@ class DBXPlugin(Star):
             yield event.plain_result("请输入搜索关键词，例如: /dbx-doc MCP")
             return
 
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        if self.github_pat:
+            headers["Authorization"] = f"Bearer {self.github_pat}"
+
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 DOC_SEARCH_URL,
@@ -130,7 +135,7 @@ class DBXPlugin(Star):
                     "q": f"{keyword} repo:{GITHUB_REPO} path:docs/ extension:mdx",
                     "per_page": 3,
                 },
-                headers={"Accept": "application/vnd.github.v3+json"},
+                headers=headers,
                 timeout=10,
             )
 
