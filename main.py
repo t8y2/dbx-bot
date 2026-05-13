@@ -1,4 +1,5 @@
 import os
+import re
 
 import httpx
 from astrbot.api.event import filter, AstrMessageEvent
@@ -110,6 +111,7 @@ class DBXPlugin(Star):
         keyword = event.message_str.strip()
         if keyword.startswith("dbx-doc"):
             keyword = keyword[7:].strip()
+        keyword = re.sub(r'(?<=[a-zA-Z])(?=[一-鿿])|(?<=[一-鿿])(?=[a-zA-Z])', ' ', keyword)
         if not keyword:
             yield event.plain_result("请输入搜索关键词，例如: /dbx-doc MCP")
             return
