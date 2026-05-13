@@ -120,6 +120,7 @@ class DBXPlugin(Star):
         if self.github_pat:
             headers["Authorization"] = f"token {self.github_pat}"
 
+        items = []
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 DOC_SEARCH_URL,
@@ -130,12 +131,24 @@ class DBXPlugin(Star):
                 headers=headers,
                 timeout=10,
             )
+            if resp.status_code == 200:
+                items = resp.json().get("items", [])
 
-        if resp.status_code != 200:
-            yield event.plain_result("搜索失败，请稍后再试。")
-            return
+            if not items:
+                en_only = re.sub(r'[一-鿿]+', '', keyword).strip()
+                if en_only and en_only != keyword:
+                    resp = await client.get(
+                        DOC_SEARCH_URL,
+                        params={
+                            "q": f"{en_only} repo:{GITHUB_REPO} path:docs/ extension:mdx",
+                            "per_page": 3,
+                        },
+                        headers=headers,
+                        timeout=10,
+                    )
+                    if resp.status_code == 200:
+                        items = resp.json().get("items", [])
 
-        items = resp.json().get("items", [])
         if not items:
             yield event.plain_result(f"未找到与「{keyword}」相关的文档。")
             return
