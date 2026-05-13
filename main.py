@@ -18,7 +18,7 @@ COMMANDS = {
     "/dbx-help": "显示所有可用命令",
 }
 
-WELCOME_MSG = "👋 欢迎第 {count} 位成员加入 DBX 社区! 发送 /dbx-help 查看可用命令~"
+WELCOME_MSG = "👋 欢迎 {name} 加入 DBX 社区! 发送 /dbx-help 查看可用命令~"
 
 
 @register(
@@ -41,20 +41,8 @@ class DBXPlugin(Star):
         if not isinstance(raw, dict):
             return
         if raw.get("post_type") == "notice" and raw.get("notice_type") == "group_increase":
-            group_id = raw.get("group_id", "")
-            count = "?"
-            try:
-                async with httpx.AsyncClient() as client:
-                    resp = await client.post(
-                        "http://napcat:6099/api/get_group_info",
-                        json={"group_id": group_id},
-                        timeout=5,
-                    )
-                    if resp.status_code == 200:
-                        count = resp.json().get("data", {}).get("member_count", "?")
-            except Exception:
-                pass
-            yield event.plain_result(WELCOME_MSG.format(count=count))
+            name = event.get_sender_name() or "新朋友"
+            yield event.plain_result(WELCOME_MSG.format(name=name))
 
     @filter.command("dbx-help")
     async def help_cmd(self, event: AstrMessageEvent):
@@ -126,7 +114,7 @@ class DBXPlugin(Star):
 
         headers = {"Accept": "application/vnd.github.v3+json"}
         if self.github_pat:
-            headers["Authorization"] = f"Bearer {self.github_pat}"
+            headers["Authorization"] = f"token {self.github_pat}"
 
         async with httpx.AsyncClient() as client:
             resp = await client.get(
