@@ -4,7 +4,7 @@ import re
 import httpx
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api.message_components import At, Plain
 
 GITHUB_REPO = "t8y2/dbx"
 GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}"
@@ -19,7 +19,7 @@ COMMANDS = {
     "/dbx-help": "显示所有可用命令",
 }
 
-WELCOME_MSG = "👋 欢迎 {name} 加入 DBX 社区! 发送 /dbx-help 查看可用命令~"
+WELCOME_MSG = " 欢迎加入 DBX 社区! 发送 /dbx-help 查看可用命令~"
 
 
 @register(
@@ -42,8 +42,9 @@ class DBXPlugin(Star):
         if not isinstance(raw, dict):
             return
         if raw.get("post_type") == "notice" and raw.get("notice_type") == "group_increase":
-            name = event.get_sender_name() or "新朋友"
-            yield event.plain_result(WELCOME_MSG.format(name=name))
+            user_id = str(raw.get("user_id", ""))
+            chain = [At(qq=user_id), Plain(WELCOME_MSG)]
+            yield event.chain_result(chain)
 
     @filter.command("dbx-help")
     async def help_cmd(self, event: AstrMessageEvent):
