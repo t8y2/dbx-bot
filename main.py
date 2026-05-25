@@ -82,6 +82,19 @@ class DBXPlugin(Star):
             return
 
         data = resp.json()
+
+        # 统计最近版本下载量
+        total_downloads = 0
+        release_count = 0
+        async with httpx.AsyncClient() as client:
+            code2, resp2 = await github_api.get_releases(client, per_page=10, pat=self.github_pat)
+            if code2 == 200:
+                releases = resp2.json()
+                release_count = len(releases)
+                for r in releases:
+                    for a in r.get("assets", []):
+                        total_downloads += a.get("download_count", 0)
+
         msg = (
             f"DBX 项目统计:\n"
             f"  Star: {data.get('stargazers_count', 0)}\n"
@@ -90,6 +103,8 @@ class DBXPlugin(Star):
             f"  语言: {data.get('language', 'N/A')}\n"
             f"  主页: {data.get('html_url', '')}"
         )
+        if total_downloads:
+            msg += f"\n  近{release_count}个版本总下载: {total_downloads:,}"
         yield event.plain_result(msg)
 
     @filter.command("dbx-doc")

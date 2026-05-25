@@ -40,6 +40,17 @@ async def get_release(client: httpx.AsyncClient, tag: str, pat=""):
     return resp.status_code, resp
 
 
+async def get_releases(client: httpx.AsyncClient, per_page=5, pat=""):
+    """获取最近的 Release 列表"""
+    resp = await client.get(
+        f"{GITHUB_API}/releases",
+        params={"per_page": per_page},
+        headers=_build_headers(pat),
+        timeout=10,
+    )
+    return resp.status_code, resp
+
+
 async def search_docs(client: httpx.AsyncClient, keyword: str, pat=""):
     """搜索文档"""
     resp = await client.get(
