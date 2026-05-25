@@ -6,3 +6,4 @@ __pycache__/
 .github/*
 !.github/workflows/
 *.local.md
+.DS_Store
