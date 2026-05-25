@@ -7,35 +7,12 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import At, Plain
 
-GITHUB_REPO = "t8y2/dbx"
-GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}"
-
-DOC_SEARCH_URL = "https://api.github.com/search/code"
-
-COMMANDS = {
-    "/dbx-latest": "查询 DBX 最新版本",
-    "/dbx-star": "查看 DBX 项目统计（Star、Fork、Issue）",
-    "/dbx-doc <关键词>": "搜索 DBX 文档",
-    "/dbx-changelog <版本号>": "查看指定版本的更新日志",
-    "/dbx-support <数据库名>": "查询 DBX 是否支持某个数据库",
-    "/dbx-faq <关键词>": "搜索已解决的 GitHub Issue",
-    "/bug <描述>": "提交 Bug 反馈到 GitHub Issue",
-    "/dbx-help": "显示所有可用命令",
-}
-
-SUPPORTED_DATABASES = [
-    "MySQL", "PostgreSQL", "SQLite", "Redis", "MongoDB", "DuckDB",
-    "ClickHouse", "SQL Server", "Oracle", "Elasticsearch", "MariaDB",
-    "TiDB", "OceanBase", "openGauss", "GaussDB", "KingBase", "Vastbase",
-    "GoldenDB", "Doris", "SelectDB", "StarRocks", "Redshift", "DM",
-    "TDengine", "CockroachDB", "Access", "HighGo",
-]
-
-WELCOME_MSG = (
-    " 欢迎加入 DBX 社区!\n"
-    "  遇到问题? 提 Issue: https://github.com/t8y2/dbx/issues\n"
-    "  欢迎贡献代码: https://github.com/t8y2/dbx/pulls\n"
-    "  发送 /dbx-help 查看可用命令"
+import github_api
+from constants import (
+    COMMANDS,
+    SUPPORTED_DATABASES,
+    WELCOME_MSG,
+    GITHUB_REPO,
 )
 
 
@@ -75,13 +52,9 @@ class DBXPlugin(Star):
     async def latest_release(self, event: AstrMessageEvent):
         """查询 DBX 最新版本"""
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{GITHUB_API}/releases/latest",
-                headers={"Accept": "application/vnd.github.v3+json"},
-                timeout=10,
-            )
+            code, resp = await github_api.get_latest_release(client)
 
-        if resp.status_code != 200:
+        if code != 200:
             yield event.plain_result("获取版本信息失败，请稍后再试。")
             return
 
@@ -101,18 +74,10 @@ class DBXPlugin(Star):
     @filter.command("dbx-star")
     async def repo_stats(self, event: AstrMessageEvent):
         """查看 DBX 项目统计"""
-        headers = {"Accept": "application/vnd.github.v3+json"}
-        if self.github_pat:
-            headers["Authorization"] = f"token {self.github_pat}"
-
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                GITHUB_API,
-                headers=headers,
-                timeout=10,
-            )
+            code, resp = await github_api.get_repo_stats(client, self.github_pat)
 
-        if resp.status_code != 200:
+        if code != 200:
             yield event.plain_result("获取项目信息失败，请稍后再试。")
             return
 
@@ -138,37 +103,17 @@ class DBXPlugin(Star):
             yield event.plain_result("请输入搜索关键词，例如: /dbx-doc MCP")
             return
 
-        headers = {"Accept": "application/vnd.github.v3+json"}
-        if self.github_pat:
-            headers["Authorization"] = f"token {self.github_pat}"
-
         items = []
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                DOC_SEARCH_URL,
-                params={
-                    "q": f"{keyword} repo:{GITHUB_REPO} path:docs/ extension:mdx",
-                    "per_page": 3,
-                },
-                headers=headers,
-                timeout=10,
-            )
-            if resp.status_code == 200:
+            code, resp = await github_api.search_docs(client, keyword, self.github_pat)
+            if code == 200:
                 items = resp.json().get("items", [])
 
             if not items:
                 en_only = re.sub(r'[一-鿿]+', '', keyword).strip()
                 if en_only and en_only != keyword:
-                    resp = await client.get(
-                        DOC_SEARCH_URL,
-                        params={
-                            "q": f"{en_only} repo:{GITHUB_REPO} path:docs/ extension:mdx",
-                            "per_page": 3,
-                        },
-                        headers=headers,
-                        timeout=10,
-                    )
-                    if resp.status_code == 200:
+                    code, resp = await github_api.search_docs(client, en_only, self.github_pat)
+                    if code == 200:
                         items = resp.json().get("items", [])
 
         if not items:
@@ -197,27 +142,16 @@ class DBXPlugin(Star):
 
         sender = event.get_sender_name()
         body = f"**来源**: QQ 群反馈 (by {sender})\n\n{description}"
+        title = f"[QQ 反馈] {description[:80]}"
 
         async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{GITHUB_API}/issues",
-                headers={
-                    "Accept": "application/vnd.github.v3+json",
-                    "Authorization": f"Bearer {self.github_token}",
-                },
-                json={
-                    "title": f"[QQ 反馈] {description[:80]}",
-                    "body": body,
-                    "labels": ["bug", "qq-feedback"],
-                },
-                timeout=10,
-            )
+            code, resp = await github_api.create_issue(client, title, body, self.github_token)
 
-        if resp.status_code == 201:
+        if code == 201:
             issue_url = resp.json().get("html_url", "")
             yield event.plain_result(f"Bug 已提交! {issue_url}")
         else:
-            logger.error(f"Failed to create issue: {resp.status_code} {resp.text}")
+            logger.error(f"Failed to create issue: {code} {resp.text}")
             yield event.plain_result("提交失败，请稍后再试。")
 
     @filter.command("dbx-changelog")
@@ -231,20 +165,15 @@ class DBXPlugin(Star):
             return
 
         if tag.lower() == "latest":
-            url = f"{GITHUB_API}/releases/latest"
+            async with httpx.AsyncClient() as client:
+                code, resp = await github_api.get_latest_release(client)
         else:
             if not tag.startswith("v"):
                 tag = f"v{tag}"
-            url = f"{GITHUB_API}/releases/tags/{tag}"
+            async with httpx.AsyncClient() as client:
+                code, resp = await github_api.get_release(client, tag, self.github_pat)
 
-        headers = {"Accept": "application/vnd.github.v3+json"}
-        if self.github_pat:
-            headers["Authorization"] = f"token {self.github_pat}"
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=headers, timeout=10)
-
-        if resp.status_code != 200:
+        if code != 200:
             yield event.plain_result(f"未找到版本「{tag}」的更新日志。")
             return
 
@@ -292,23 +221,10 @@ class DBXPlugin(Star):
             yield event.plain_result("请输入搜索关键词，例如: /dbx-faq 连接失败")
             return
 
-        headers = {"Accept": "application/vnd.github.v3+json"}
-        if self.github_pat:
-            headers["Authorization"] = f"token {self.github_pat}"
-
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                "https://api.github.com/search/issues",
-                params={
-                    "q": f"{keyword} repo:{GITHUB_REPO} is:issue is:closed",
-                    "per_page": 3,
-                    "sort": "updated",
-                },
-                headers=headers,
-                timeout=10,
-            )
+            code, resp = await github_api.search_issues(client, keyword, self.github_pat)
 
-        if resp.status_code != 200:
+        if code != 200:
             yield event.plain_result("搜索 FAQ 失败，请稍后再试。")
             return
 
