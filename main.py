@@ -2,6 +2,7 @@ import os
 import re
 
 import httpx
+from astrbot.api import logger
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import At, Plain
@@ -15,9 +16,20 @@ COMMANDS = {
     "/dbx-latest": "查询 DBX 最新版本",
     "/dbx-star": "查看 DBX 项目统计（Star、Fork、Issue）",
     "/dbx-doc <关键词>": "搜索 DBX 文档",
+    "/dbx-changelog <版本号>": "查看指定版本的更新日志",
+    "/dbx-support <数据库名>": "查询 DBX 是否支持某个数据库",
+    "/dbx-faq <关键词>": "搜索已解决的 GitHub Issue",
     "/bug <描述>": "提交 Bug 反馈到 GitHub Issue",
     "/dbx-help": "显示所有可用命令",
 }
+
+SUPPORTED_DATABASES = [
+    "MySQL", "PostgreSQL", "SQLite", "Redis", "MongoDB", "DuckDB",
+    "ClickHouse", "SQL Server", "Oracle", "Elasticsearch", "MariaDB",
+    "TiDB", "OceanBase", "openGauss", "GaussDB", "KingBase", "Vastbase",
+    "GoldenDB", "Doris", "SelectDB", "StarRocks", "Redshift", "DM",
+    "TDengine", "CockroachDB", "Access", "HighGo",
+]
 
 WELCOME_MSG = (
     " 欢迎加入 DBX 社区!\n"
@@ -89,10 +101,14 @@ class DBXPlugin(Star):
     @filter.command("dbx-star")
     async def repo_stats(self, event: AstrMessageEvent):
         """查看 DBX 项目统计"""
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        if self.github_pat:
+            headers["Authorization"] = f"token {self.github_pat}"
+
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 GITHUB_API,
-                headers={"Accept": "application/vnd.github.v3+json"},
+                headers=headers,
                 timeout=10,
             )
 
@@ -203,6 +219,139 @@ class DBXPlugin(Star):
         else:
             logger.error(f"Failed to create issue: {resp.status_code} {resp.text}")
             yield event.plain_result("提交失败，请稍后再试。")
+
+    @filter.command("dbx-changelog")
+    async def changelog(self, event: AstrMessageEvent):
+        """查看 DBX 指定版本的更新日志"""
+        tag = event.message_str.strip()
+        if tag.startswith("dbx-changelog"):
+            tag = tag[len("dbx-changelog"):].strip()
+        if not tag:
+            yield event.plain_result("请指定版本号，例如: /dbx-changelog v0.5.19 或 /dbx-changelog latest")
+            return
+
+        if tag.lower() == "latest":
+            url = f"{GITHUB_API}/releases/latest"
+        else:
+            if not tag.startswith("v"):
+                tag = f"v{tag}"
+            url = f"{GITHUB_API}/releases/tags/{tag}"
+
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        if self.github_pat:
+            headers["Authorization"] = f"token {self.github_pat}"
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=headers, timeout=10)
+
+        if resp.status_code != 200:
+            yield event.plain_result(f"未找到版本「{tag}」的更新日志。")
+            return
+
+        data = resp.json()
+        body = data.get("body", "")
+        html_url = data.get("html_url", "")
+        tag_name = data.get("tag_name", tag)
+        published = data.get("published_at", "")[:10]
+
+        if len(body) > 1500:
+            body = body[:1500] + f"\n\n... 完整内容: {html_url}"
+
+        msg = f"DBX {tag_name} ({published})\n{html_url}\n\n{body}"
+        yield event.plain_result(msg)
+
+    @filter.command("dbx-support")
+    async def check_support(self, event: AstrMessageEvent):
+        """查询 DBX 是否支持某个数据库"""
+        keyword = event.message_str.strip()
+        if keyword.startswith("dbx-support"):
+            keyword = keyword[len("dbx-support"):].strip()
+        if not keyword:
+            yield event.plain_result("请输入数据库名称，例如: /dbx-support MySQL")
+            return
+
+        keyword_lower = keyword.lower()
+        matches = [db for db in SUPPORTED_DATABASES if keyword_lower in db.lower()]
+
+        if not matches:
+            yield event.plain_result(f"未找到与「{keyword}」匹配的数据库，DBX 可能暂不支持。\n已知支持的数据库列表: https://dbxio.com/docs/datasources/overview")
+            return
+
+        if len(matches) == 1 and matches[0].lower() == keyword_lower:
+            yield event.plain_result(f"DBX 支持 {matches[0]}。\n文档: https://dbxio.com/docs/datasources/{matches[0].lower().replace(' ', '-')}")
+        else:
+            yield event.plain_result(f"找到 {len(matches)} 个匹配: {', '.join(matches)}")
+
+    @filter.command("dbx-faq")
+    async def search_faq(self, event: AstrMessageEvent):
+        """搜索已解决的 GitHub Issue"""
+        keyword = event.message_str.strip()
+        if keyword.startswith("dbx-faq"):
+            keyword = keyword[len("dbx-faq"):].strip()
+        if not keyword:
+            yield event.plain_result("请输入搜索关键词，例如: /dbx-faq 连接失败")
+            return
+
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        if self.github_pat:
+            headers["Authorization"] = f"token {self.github_pat}"
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.github.com/search/issues",
+                params={
+                    "q": f"{keyword} repo:{GITHUB_REPO} is:issue is:closed",
+                    "per_page": 3,
+                    "sort": "updated",
+                },
+                headers=headers,
+                timeout=10,
+            )
+
+        if resp.status_code != 200:
+            yield event.plain_result("搜索 FAQ 失败，请稍后再试。")
+            return
+
+        items = resp.json().get("items", [])
+        if not items:
+            yield event.plain_result(f"未找到与「{keyword}」相关的已解决问题。")
+            return
+
+        lines = [f"找到 {len(items)} 个相关 Issue:\n"]
+        for item in items:
+            title = item.get("title", "")
+            url = item.get("html_url", "")
+            state = "已关闭" if item.get("state") == "closed" else item.get("state", "")
+            lines.append(f"  [{state}] {title}\n  {url}")
+        yield event.plain_result("\n".join(lines))
+
+    @filter.command("dbx-admin")
+    async def admin_cmd(self, event: AstrMessageEvent):
+        """管理员运维命令"""
+        sub = event.message_str.strip()
+        if sub.startswith("dbx-admin"):
+            sub = sub[len("dbx-admin"):].strip()
+
+        if not sub or sub == "help":
+            yield event.plain_result(
+                "DBX Bot 管理命令:\n"
+                "  /dbx-admin status — 查看 Bot 运行状态\n"
+                "  /dbx-admin help — 显示此帮助"
+            )
+            return
+
+        if sub == "status":
+            import datetime
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            msg = (
+                f"DBX Bot 运行中\n"
+                f"  版本: 1.2.0\n"
+                f"  仓库: https://github.com/t8y2/dbx\n"
+                f"  服务器时间: {now}"
+            )
+            yield event.plain_result(msg)
+        else:
+            yield event.plain_result(f"未知子命令「{sub}」，使用 /dbx-admin help 查看可用命令。")
 
     async def terminate(self):
         pass
