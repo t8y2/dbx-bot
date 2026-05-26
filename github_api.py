@@ -80,15 +80,17 @@ async def search_issues(client: httpx.AsyncClient, keyword: str, pat=""):
     return resp.status_code, resp
 
 
-async def create_issue(client: httpx.AsyncClient, title: str, body: str, token: str):
+async def create_issue(client: httpx.AsyncClient, title: str, body: str, token: str, labels=None):
     """创建 GitHub Issue"""
+    if labels is None:
+        labels = ["bug", "qq-feedback"]
     resp = await client.post(
         f"{GITHUB_API}/issues",
         headers={
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"Bearer {token}",
         },
-        json={"title": title, "body": body, "labels": ["bug", "qq-feedback"]},
+        json={"title": title, "body": body, "labels": labels},
         timeout=10,
     )
     return resp.status_code, resp
