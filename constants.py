@@ -11,7 +11,7 @@ COMMANDS = {
     "/dbx-changelog <版本号>": "查看指定版本的更新日志",
     "/dbx-support <数据库名>": "查询 DBX 是否支持某个数据库",
     "/dbx-faq <关键词>": "搜索已解决的 GitHub Issue",
-    "/bug <描述>": "提交 Bug 反馈到 GitHub Issue",
+    "/issue <描述>": "提交 Issue 反馈（自动识别 Bug/功能建议）",
     "/dbx-help": "显示所有可用命令",
 }
 
