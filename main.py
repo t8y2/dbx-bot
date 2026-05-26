@@ -43,7 +43,7 @@ class DBXPlugin(Star):
             chain = [At(qq=user_id), Plain(WELCOME_MSG)]
             yield event.chain_result(chain)
 
-    @filter.command("help")
+    @filter.command("dbx-help")
     async def help_cmd(self, event: AstrMessageEvent):
         """显示所有可用命令"""
         lines = ["DBX Bot 可用命令:\n"]
@@ -51,7 +51,7 @@ class DBXPlugin(Star):
             lines.append(f"  {cmd} — {desc}")
         yield event.plain_result("\n".join(lines))
 
-    @filter.command("latest")
+    @filter.command("dbx-latest")
     async def latest_release(self, event: AstrMessageEvent):
         """查询 DBX 最新版本"""
         async with httpx.AsyncClient() as client:
@@ -74,7 +74,7 @@ class DBXPlugin(Star):
         )
         yield event.plain_result(msg)
 
-    @filter.command("star")
+    @filter.command("dbx-star")
     async def repo_stats(self, event: AstrMessageEvent):
         """查看 DBX 项目统计"""
         async with httpx.AsyncClient() as client:
@@ -110,15 +110,15 @@ class DBXPlugin(Star):
             msg += f"\n  近{release_count}个版本总下载: {total_downloads:,}"
         yield event.plain_result(msg)
 
-    @filter.command("doc")
+    @filter.command("dbx-doc")
     async def search_doc(self, event: AstrMessageEvent):
         """搜索 DBX 文档"""
         keyword = event.message_str.strip()
-        if keyword.startswith("doc"):
-            keyword = keyword[3:].strip()
+        if keyword.startswith("dbx-doc"):
+            keyword = keyword[7:].strip()
         keyword = re.sub(r'(?<=[a-zA-Z])(?=[一-鿿])|(?<=[一-鿿])(?=[a-zA-Z])', ' ', keyword)
         if not keyword:
-            yield event.plain_result("请输入搜索关键词，例如: /doc MCP")
+            yield event.plain_result("请输入搜索关键词，例如: /dbx-doc MCP")
             return
 
         items = []
@@ -145,14 +145,14 @@ class DBXPlugin(Star):
             lines.append(f"  {name}\n  {url}")
         yield event.plain_result("\n".join(lines))
 
-    @filter.command("issue")
+    @filter.command("dbx-issue")
     async def create_issue(self, event: AstrMessageEvent):
         """提交 Issue 反馈，自动识别 Bug/功能建议"""
         description = event.message_str.strip()
-        if description.startswith("issue"):
-            description = description[5:].strip()
+        if description.startswith("dbx-issue"):
+            description = description[9:].strip()
         if not description:
-            yield event.plain_result("请输入 Issue 描述，例如: /issue 启动时报错 XXX")
+            yield event.plain_result("请输入 Issue 描述，例如: /dbx-issue 启动时报错 XXX")
             return
 
         if not self.github_token:
@@ -184,14 +184,14 @@ class DBXPlugin(Star):
             logger.error(f"Failed to create issue: {code} {resp.text}")
             yield event.plain_result("提交失败，请稍后再试。")
 
-    @filter.command("changelog")
+    @filter.command("dbx-changelog")
     async def changelog(self, event: AstrMessageEvent):
         """查看 DBX 指定版本的更新日志"""
         tag = event.message_str.strip()
-        if tag.startswith("changelog"):
-            tag = tag[len("changelog"):].strip()
+        if tag.startswith("dbx-changelog"):
+            tag = tag[len("dbx-changelog"):].strip()
         if not tag:
-            yield event.plain_result("请指定版本号，例如: /changelog v0.5.19 或 /changelog latest")
+            yield event.plain_result("请指定版本号，例如: /dbx-changelog v0.5.19 或 /dbx-changelog latest")
             return
 
         if tag.lower() == "latest":
@@ -219,14 +219,14 @@ class DBXPlugin(Star):
         msg = f"DBX {tag_name} ({published})\n{html_url}\n\n{body}"
         yield event.plain_result(msg)
 
-    @filter.command("support")
+    @filter.command("dbx-support")
     async def check_support(self, event: AstrMessageEvent):
         """查询 DBX 是否支持某个数据库"""
         keyword = event.message_str.strip()
-        if keyword.startswith("support"):
-            keyword = keyword[len("support"):].strip()
+        if keyword.startswith("dbx-support"):
+            keyword = keyword[len("dbx-support"):].strip()
         if not keyword:
-            yield event.plain_result("请输入数据库名称，例如: /support MySQL")
+            yield event.plain_result("请输入数据库名称，例如: /dbx-support MySQL")
             return
 
         keyword_lower = keyword.lower()
@@ -241,14 +241,14 @@ class DBXPlugin(Star):
         else:
             yield event.plain_result(f"找到 {len(matches)} 个匹配: {', '.join(matches)}")
 
-    @filter.command("faq")
+    @filter.command("dbx-faq")
     async def search_faq(self, event: AstrMessageEvent):
         """搜索已解决的 GitHub Issue"""
         keyword = event.message_str.strip()
-        if keyword.startswith("faq"):
-            keyword = keyword[len("faq"):].strip()
+        if keyword.startswith("dbx-faq"):
+            keyword = keyword[len("dbx-faq"):].strip()
         if not keyword:
-            yield event.plain_result("请输入搜索关键词，例如: /faq 连接失败")
+            yield event.plain_result("请输入搜索关键词，例如: /dbx-faq 连接失败")
             return
 
         async with httpx.AsyncClient() as client:
@@ -271,18 +271,18 @@ class DBXPlugin(Star):
             lines.append(f"  [{state}] {title}\n  {url}")
         yield event.plain_result("\n".join(lines))
 
-    @filter.command("admin")
+    @filter.command("dbx-admin")
     async def admin_cmd(self, event: AstrMessageEvent):
         """管理员运维命令"""
         sub = event.message_str.strip()
-        if sub.startswith("admin"):
-            sub = sub[len("admin"):].strip()
+        if sub.startswith("dbx-admin"):
+            sub = sub[len("dbx-admin"):].strip()
 
         if not sub or sub == "help":
             yield event.plain_result(
                 "DBX Bot 管理命令:\n"
-                "  /admin status — 查看 Bot 运行状态\n"
-                "  /admin help — 显示此帮助"
+                "  /dbx-admin status — 查看 Bot 运行状态\n"
+                "  /dbx-admin help — 显示此帮助"
             )
             return
 
@@ -291,13 +291,13 @@ class DBXPlugin(Star):
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             msg = (
                 f"DBX Bot 运行中\n"
-                f"  版本: 1.2.0\n"
+                f"  版本: 1.3.0\n"
                 f"  仓库: https://github.com/t8y2/dbx\n"
                 f"  服务器时间: {now}"
             )
             yield event.plain_result(msg)
         else:
-            yield event.plain_result(f"未知子命令「{sub}」，使用 /admin help 查看可用命令。")
+            yield event.plain_result(f"未知子命令「{sub}」，使用 /dbx-admin help 查看可用命令。")
 
     async def terminate(self):
         pass
