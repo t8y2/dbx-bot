@@ -142,29 +142,43 @@ class DBXPlugin(Star):
             lines.append(f"  {name}\n  {url}")
         yield event.plain_result("\n".join(lines))
 
-    @filter.command("bug")
-    async def report_bug(self, event: AstrMessageEvent):
-        """提交 Bug 反馈到 GitHub Issue"""
+    @filter.command("issue")
+    async def create_issue(self, event: AstrMessageEvent):
+        """提交 Issue 反馈，自动识别 Bug/功能建议"""
         description = event.message_str.strip()
-        if description.startswith("bug"):
-            description = description[3:].strip()
+        if description.startswith("issue"):
+            description = description[5:].strip()
         if not description:
             return
 
         if not self.github_token:
-            yield event.plain_result("Bug 反馈功能未配置，请联系管理员设置 GITHUB_TOKEN。")
+            yield event.plain_result("Issue 反馈功能未配置，请联系管理员设置 GITHUB_TOKEN。")
             return
+
+        bug_keywords = ["bug", "报错", "异常", "错误", "崩溃", "闪退"]
+        feature_keywords = ["建议", "希望", "功能", "需求", "feature", "增加", "添加"]
+
+        desc_lower = description.lower()
+        is_feature = any(kw in desc_lower for kw in feature_keywords)
+        is_bug = any(kw in desc_lower for kw in bug_keywords)
+
+        if is_feature and not is_bug:
+            prefix = "[Feature]"
+            labels = ["enhancement", "qq-feedback"]
+        else:
+            prefix = "[Bug]"
+            labels = ["bug", "qq-feedback"]
 
         sender = event.get_sender_name()
         body = f"**来源**: QQ 群反馈 (by {sender})\n\n{description}"
-        title = f"[QQ 反馈] {description[:80]}"
+        title = f"{prefix} {description[:80]}"
 
         async with httpx.AsyncClient() as client:
-            code, resp = await github_api.create_issue(client, title, body, self.github_token)
+            code, resp = await github_api.create_issue(client, title, body, self.github_token, labels)
 
         if code == 201:
             issue_url = resp.json().get("html_url", "")
-            yield event.plain_result(f"Bug 已提交! {issue_url}")
+            yield event.plain_result(f"Issue 已提交! {issue_url}")
         else:
             logger.error(f"Failed to create issue: {code} {resp.text}")
             yield event.plain_result("提交失败，请稍后再试。")
