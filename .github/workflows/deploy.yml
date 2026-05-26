@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'main.py'
+      - 'constants.py'
+      - 'github_api.py'
       - 'metadata.yaml'
       - 'requirements.txt'
 
@@ -18,6 +20,8 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           HOST: ${{ secrets.DEPLOY_HOST }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          BOT_PAT: ${{ secrets.BOT_PAT }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
@@ -26,5 +30,14 @@ jobs:
 
           PLUGIN_DIR="/home/tianyu/app/dbx-bot/data/plugins/astrbot_plugin_dbx"
 
-          scp main.py metadata.yaml requirements.txt "root@${HOST}:${PLUGIN_DIR}/"
-          ssh "root@${HOST}" "cd /home/tianyu/app/dbx-bot && docker compose restart astrbot"
+          scp main.py constants.py github_api.py metadata.yaml requirements.txt "root@${HOST}:${PLUGIN_DIR}/"
+
+          # 注入环境变量到 Docker
+          ssh "root@${HOST}" bash -s << REMOTE
+            cd /home/tianyu/app/dbx-bot
+            cat > .env << ENVEOF
+          GITHUB_TOKEN=${BOT_TOKEN}
+          GITHUB_PAT=${BOT_PAT}
+          ENVEOF
+            docker compose up -d --force-recreate astrbot
+          REMOTE
