@@ -1,5 +1,5 @@
 import httpx
-from constants import GITHUB_REPO, GITHUB_API, DOC_SEARCH_URL, ISSUE_SEARCH_URL
+from .constants import GITHUB_REPO, GITHUB_API, DOC_SEARCH_URL, ISSUE_SEARCH_URL
 
 
 def _build_headers(pat=None):

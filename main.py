@@ -7,8 +7,8 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import At, Plain
 
-import github_api
-from constants import (
+from . import github_api
+from .constants import (
     COMMANDS,
     SUPPORTED_DATABASES,
     WELCOME_MSG,
