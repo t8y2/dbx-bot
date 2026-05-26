@@ -15,6 +15,9 @@ from constants import (
     GITHUB_REPO,
 )
 
+_BUG_KEYWORDS_CN = ["报错", "异常", "错误", "崩溃", "闪退"]
+_FEATURE_KEYWORDS_CN = ["建议", "希望", "功能", "需求", "增加", "添加"]
+
 
 @register(
     "astrbot_plugin_dbx",
@@ -149,18 +152,16 @@ class DBXPlugin(Star):
         if description.startswith("issue"):
             description = description[5:].strip()
         if not description:
+            yield event.plain_result("请输入 Issue 描述，例如: /issue 启动时报错 XXX")
             return
 
         if not self.github_token:
             yield event.plain_result("Issue 反馈功能未配置，请联系管理员设置 GITHUB_TOKEN。")
             return
 
-        bug_keywords = ["bug", "报错", "异常", "错误", "崩溃", "闪退"]
-        feature_keywords = ["建议", "希望", "功能", "需求", "feature", "增加", "添加"]
-
         desc_lower = description.lower()
-        is_feature = any(kw in desc_lower for kw in feature_keywords)
-        is_bug = any(kw in desc_lower for kw in bug_keywords)
+        is_bug = any(kw in desc_lower for kw in _BUG_KEYWORDS_CN) or bool(re.search(r'\bbug\b', desc_lower))
+        is_feature = any(kw in desc_lower for kw in _FEATURE_KEYWORDS_CN) or bool(re.search(r'\bfeature\b', desc_lower))
 
         if is_feature and not is_bug:
             prefix = "[Feature]"
