@@ -155,8 +155,8 @@ class DBXPlugin(Star):
             yield event.plain_result("请输入 Issue 描述，例如: /dbx-issue 启动时报错 XXX")
             return
 
-        if not self.github_token:
-            yield event.plain_result("Issue 反馈功能未配置，请联系管理员设置 GITHUB_TOKEN。")
+        if not self.github_token and not self.github_pat:
+            yield event.plain_result("Issue 反馈功能未配置，请联系管理员设置 GITHUB_TOKEN 或 GITHUB_PAT。")
             return
 
         desc_lower = description.lower()
@@ -175,7 +175,8 @@ class DBXPlugin(Star):
         title = f"{prefix} {description[:80]}"
 
         async with httpx.AsyncClient() as client:
-            code, resp = await github_api.create_issue(client, title, body, self.github_token, labels)
+            token = self.github_token or self.github_pat
+            code, resp = await github_api.create_issue(client, title, body, token, labels)
 
         if code == 201:
             issue_url = resp.json().get("html_url", "")
