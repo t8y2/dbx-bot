@@ -7,6 +7,7 @@ from astrbot.api import logger
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import At, Plain
+from astrbot.api.util import session_waiter, SessionController
 
 from . import github_api
 from .constants import (
@@ -149,7 +150,7 @@ class DBXPlugin(Star):
 
     @filter.command("dbx-issue")
     async def create_issue(self, event: AstrMessageEvent):
-        """提交 Issue 反馈，使用 LLM 自动分类并生成标题"""
+        """提交 Issue 反馈，使用 LLM 自动分类并生成标题，提交前二次确认"""
         description = event.message_str.strip()
         if description.startswith("dbx-issue"):
             description = description[9:].strip()
@@ -173,6 +174,7 @@ class DBXPlugin(Star):
             title = result["title"]
             labels = result["labels"] + ["qq-feedback"]
             body = f"**来源**: QQ 群反馈 (by {sender})\n\n## AI 摘要\n{result['summary']}\n\n## 原始描述\n{description}"
+            summary = result["summary"]
         else:
             desc_lower = description.lower()
             is_bug = any(kw in desc_lower for kw in _BUG_KEYWORDS_CN) or bool(re.search(r'\bbug\b', desc_lower, re.ASCII))
@@ -181,17 +183,41 @@ class DBXPlugin(Star):
             labels = (["enhancement"] if prefix == "[Feature]" else ["bug"]) + ["qq-feedback"]
             title = f"{prefix} {description[:80]}"
             body = f"**来源**: QQ 群反馈 (by {sender})\n\n{description}"
+            summary = description[:100]
 
-        async with httpx.AsyncClient() as client:
-            token = self.bot_token or self.bot_pat
-            code, resp = await github_api.create_issue(client, title, body, token, labels)
+        issue_type = "bug" if "bug" in labels else "enhancement" if "enhancement" in labels else "unknown"
+        preview = (
+            f"[确认提交 Issue]\n"
+            f"  标题: {title}\n"
+            f"  类型: {issue_type}\n"
+            f"  摘要: {summary}\n\n"
+            f'回复"确认"提交，回复其他内容取消（30 秒超时）'
+        )
+        yield event.plain_result(preview)
 
-        if code == 201:
-            issue_url = resp.json().get("html_url", "")
-            yield event.plain_result(f"Issue 已提交! {issue_url}")
-        else:
-            logger.error(f"Failed to create issue: {code} {resp.text}")
-            yield event.plain_result("提交失败，请稍后再试。")
+        @session_waiter(timeout=30)
+        async def confirm_waiter(controller: SessionController, event: AstrMessageEvent):
+            reply = event.message_str.strip()
+            if reply == "确认":
+                async with httpx.AsyncClient() as client:
+                    token = self.bot_token or self.bot_pat
+                    code, resp = await github_api.create_issue(client, title, body, token, labels)
+                if code == 201:
+                    issue_url = resp.json().get("html_url", "")
+                    await event.send(event.plain_result(f"Issue 已提交! {issue_url}"))
+                else:
+                    logger.error(f"Failed to create issue: {code} {resp.text}")
+                    await event.send(event.plain_result("提交失败，请稍后再试。"))
+            else:
+                await event.send(event.plain_result("已取消。"))
+            controller.stop()
+
+        try:
+            await confirm_waiter(event)
+        except TimeoutError:
+            yield event.plain_result("等待超时，已取消提交。")
+        finally:
+            event.stop_event()
 
     async def _classify_with_llm(self, description: str):
         """使用 DeepSeek 对 Issue 进行分类并生成标题、摘要"""
