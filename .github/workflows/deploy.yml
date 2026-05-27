@@ -32,12 +32,13 @@ jobs:
 
           scp main.py constants.py github_api.py metadata.yaml requirements.txt "root@${HOST}:${PLUGIN_DIR}/"
 
-          # 注入环境变量到 Docker
-          ssh "root@${HOST}" bash -s << REMOTE
+          # 注入环境变量到 docker-compose.yml 并重启
+          ssh "root@${HOST}" bash -s << 'REMOTE'
             cd /home/tianyu/app/dbx-bot
-            cat > .env << ENVEOF
-          BOT_TOKEN=${BOT_TOKEN}
-          BOT_PAT=${BOT_PAT}
-          ENVEOF
+            # 删除旧的 GITHUB_PAT 行（如果有），添加 BOT_TOKEN / BOT_PAT
+            sed -i '/GITHUB_PAT/d' docker-compose.yml
+            sed -i '/BOT_TOKEN/d' docker-compose.yml
+            sed -i '/BOT_PAT/d' docker-compose.yml
+            sed -i "/TZ=Asia\/Shanghai/a\      - BOT_TOKEN=${BOT_TOKEN}\n      - BOT_PAT=${BOT_PAT}" docker-compose.yml
             docker compose up -d --force-recreate astrbot
           REMOTE
