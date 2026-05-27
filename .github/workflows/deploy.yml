@@ -9,6 +9,7 @@ on:
       - 'github_api.py'
       - 'metadata.yaml'
       - 'requirements.txt'
+      - '.github/workflows/deploy.yml'
 
 jobs:
   deploy:
