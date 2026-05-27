@@ -21,4 +21,4 @@
 3. 将此插件放入 `AstrBot/data/plugins/astrbot_plugin_dbx/` 目录
 4. 在 AstrBot WebUI 中配置 LLM 提供商
 5. 上传 DBX 文档到知识库（用于自动回答问题）
-6. 设置环境变量 `GITHUB_TOKEN` 和 `GITHUB_PAT`（用于 GitHub API 调用）
+6. 设置环境变量 `BOT_TOKEN` 和 `BOT_PAT`（用于 GitHub API 调用）

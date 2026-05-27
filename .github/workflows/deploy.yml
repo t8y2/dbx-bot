@@ -36,8 +36,8 @@ jobs:
           ssh "root@${HOST}" bash -s << REMOTE
             cd /home/tianyu/app/dbx-bot
             cat > .env << ENVEOF
-          GITHUB_TOKEN=${BOT_TOKEN}
-          GITHUB_PAT=${BOT_PAT}
+          BOT_TOKEN=${BOT_TOKEN}
+          BOT_PAT=${BOT_PAT}
           ENVEOF
             docker compose up -d --force-recreate astrbot
           REMOTE
