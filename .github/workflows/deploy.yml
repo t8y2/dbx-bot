@@ -34,7 +34,7 @@ jobs:
           scp main.py constants.py github_api.py metadata.yaml requirements.txt "root@${HOST}:${PLUGIN_DIR}/"
 
           # 注入环境变量到 docker-compose.yml 并重启
-          ssh "root@${HOST}" bash -s << 'REMOTE'
+          ssh "root@${HOST}" BOT_TOKEN="${BOT_TOKEN}" BOT_PAT="${BOT_PAT}" DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" bash -s << 'REMOTE'
             cd /home/tianyu/app/dbx-bot
             # 删除旧的 GITHUB_PAT 行（如果有），添加 BOT_TOKEN / BOT_PAT
             sed -i '/GITHUB_PAT/d' docker-compose.yml
