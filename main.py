@@ -229,7 +229,7 @@ class DBXPlugin(Star):
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "deepseek-chat",
+                    "model": "deepseek-v4-pro",
                     "messages": [
                         {
                             "role": "system",
