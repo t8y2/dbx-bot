@@ -1,3 +1,4 @@
+import json
 import os
 import re
 
@@ -31,6 +32,7 @@ class DBXPlugin(Star):
         super().__init__(context)
         self.bot_token = os.environ.get("BOT_TOKEN", "")
         self.bot_pat = os.environ.get("BOT_PAT", "")
+        self.deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "")
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_group_increase(self, event: AstrMessageEvent):
@@ -147,7 +149,7 @@ class DBXPlugin(Star):
 
     @filter.command("dbx-issue")
     async def create_issue(self, event: AstrMessageEvent):
-        """提交 Issue 反馈，自动识别 Bug/功能建议"""
+        """提交 Issue 反馈，使用 LLM 自动分类并生成标题"""
         description = event.message_str.strip()
         if description.startswith("dbx-issue"):
             description = description[9:].strip()
@@ -159,20 +161,26 @@ class DBXPlugin(Star):
             yield event.plain_result("Issue 反馈功能未配置，请联系管理员设置 BOT_TOKEN 或 BOT_PAT。")
             return
 
-        desc_lower = description.lower()
-        is_bug = any(kw in desc_lower for kw in _BUG_KEYWORDS_CN) or bool(re.search(r'\bbug\b', desc_lower, re.ASCII))
-        is_feature = any(kw in desc_lower for kw in _FEATURE_KEYWORDS_CN) or bool(re.search(r'\bfeature\b', desc_lower, re.ASCII))
-
-        if is_feature and not is_bug:
-            prefix = "[Feature]"
-            labels = ["enhancement", "qq-feedback"]
-        else:
-            prefix = "[Bug]"
-            labels = ["bug", "qq-feedback"]
-
         sender = event.get_sender_name()
-        body = f"**来源**: QQ 群反馈 (by {sender})\n\n{description}"
-        title = f"{prefix} {description[:80]}"
+        result = None
+        if self.deepseek_key:
+            try:
+                result = await self._classify_with_llm(description)
+            except Exception as e:
+                logger.error(f"LLM classification failed, falling back to keywords: {e}")
+
+        if result:
+            title = result["title"]
+            labels = result["labels"] + ["qq-feedback"]
+            body = f"**来源**: QQ 群反馈 (by {sender})\n\n## AI 摘要\n{result['summary']}\n\n## 原始描述\n{description}"
+        else:
+            desc_lower = description.lower()
+            is_bug = any(kw in desc_lower for kw in _BUG_KEYWORDS_CN) or bool(re.search(r'\bbug\b', desc_lower, re.ASCII))
+            is_feature = any(kw in desc_lower for kw in _FEATURE_KEYWORDS_CN) or bool(re.search(r'\bfeature\b', desc_lower, re.ASCII))
+            prefix = "[Feature]" if (is_feature and not is_bug) else "[Bug]"
+            labels = (["enhancement"] if prefix == "[Feature]" else ["bug"]) + ["qq-feedback"]
+            title = f"{prefix} {description[:80]}"
+            body = f"**来源**: QQ 群反馈 (by {sender})\n\n{description}"
 
         async with httpx.AsyncClient() as client:
             token = self.bot_token or self.bot_pat
@@ -184,6 +192,42 @@ class DBXPlugin(Star):
         else:
             logger.error(f"Failed to create issue: {code} {resp.text}")
             yield event.plain_result("提交失败，请稍后再试。")
+
+    async def _classify_with_llm(self, description: str):
+        """使用 DeepSeek 对 Issue 进行分类并生成标题、摘要"""
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.deepseek_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "你是一个 GitHub Issue 分类助手。根据用户的问题描述，判断是 Bug 还是功能建议，"
+                                "生成简洁的 Issue 标题（不超过 80 字），并提取关键摘要（不超过 200 字）。\n\n"
+                                "返回 JSON：{\"type\": \"bug\"|\"feature\", \"title\": \"标题\", \"summary\": \"摘要\"}"
+                            ),
+                        },
+                        {"role": "user", "content": description},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.3,
+                },
+                timeout=30,
+            )
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            parsed = json.loads(content)
+            return {
+                "title": parsed.get("title", description[:80]),
+                "labels": ["bug"] if parsed.get("type") == "bug" else ["enhancement"],
+                "summary": parsed.get("summary", ""),
+            }
 
     @filter.command("dbx-changelog")
     async def changelog(self, event: AstrMessageEvent):

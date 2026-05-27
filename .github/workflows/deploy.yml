@@ -22,6 +22,7 @@ jobs:
           HOST: ${{ secrets.DEPLOY_HOST }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           BOT_PAT: ${{ secrets.BOT_PAT }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
@@ -39,6 +40,7 @@ jobs:
             sed -i '/GITHUB_PAT/d' docker-compose.yml
             sed -i '/BOT_TOKEN/d' docker-compose.yml
             sed -i '/BOT_PAT/d' docker-compose.yml
-            sed -i "/TZ=Asia\/Shanghai/a\      - BOT_TOKEN=${BOT_TOKEN}\n      - BOT_PAT=${BOT_PAT}" docker-compose.yml
+            sed -i '/DEEPSEEK_API_KEY/d' docker-compose.yml
+            sed -i "/TZ=Asia\/Shanghai/a\      - BOT_TOKEN=${BOT_TOKEN}\n      - BOT_PAT=${BOT_PAT}\n      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}" docker-compose.yml
             docker compose up -d --force-recreate astrbot
           REMOTE
