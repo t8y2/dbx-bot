@@ -59,6 +59,52 @@ class DBXPlugin(Star):
             chain = [At(qq=user_id), Plain(WELCOME_MSG)]
             yield event.chain_result(chain)
 
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_group_request(self, event: AstrMessageEvent):
+        """自动审批加群申请"""
+        raw = getattr(event.message_obj, "raw_message", None)
+        if not isinstance(raw, dict):
+            return
+        if raw.get("post_type") != "request":
+            return
+        if raw.get("request_type") != "group" or raw.get("sub_type") != "add":
+            return
+
+        group_id = raw.get("group_id")
+        if group_id != _AUTO_APPROVE_GROUP_ID:
+            return
+
+        comment = raw.get("comment", "").strip()
+        flag = raw.get("flag", "")
+        user_id = str(raw.get("user_id", ""))
+
+        if not comment or not flag:
+            return
+
+        logger.info(f"[auto-approve] 收到加群申请: user={user_id} group={group_id} comment={comment}")
+
+        legitimate = False
+        used_llm = False
+        if self.deepseek_key:
+            try:
+                legitimate = await self._classify_join_request(comment)
+                used_llm = True
+            except Exception as e:
+                logger.warning(f"[auto-approve] LLM classification failed, falling back to keywords: {e}")
+
+        if not used_llm:
+            comment_lower = comment.lower()
+            legitimate = any(kw in comment_lower for kw in _LEGITIMATE_KEYWORDS)
+
+        if legitimate:
+            try:
+                await self._approve_join_request(event, flag, user_id)
+                logger.info(f"[auto-approve] 已自动同意 user={user_id}")
+            except Exception as e:
+                logger.error(f"[auto-approve] 审批失败 user={user_id}: {e}")
+        else:
+            logger.info(f"[auto-approve] 非正规来源，等待人工审核: user={user_id} comment={comment}")
+
     @filter.command("dbx-help")
     async def help_cmd(self, event: AstrMessageEvent):
         """显示所有可用命令"""
