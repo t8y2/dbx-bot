@@ -20,6 +20,19 @@ from .constants import (
 _BUG_KEYWORDS_CN = ["报错", "异常", "错误", "崩溃", "闪退"]
 _FEATURE_KEYWORDS_CN = ["建议", "希望", "功能", "需求", "增加", "添加"]
 
+# 加群自动审批
+_AUTO_APPROVE_GROUP_ID = 1087880322
+_LEGITIMATE_KEYWORDS = [
+    "github",
+    "dbxio",
+    "dbx",
+    "关于",
+    "linuxdo",
+    "hellogit",
+    "hellogithub",
+    "公众号",
+    "微信",
+]
 
 @register(
     "astrbot_plugin_dbx",
