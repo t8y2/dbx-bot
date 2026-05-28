@@ -314,6 +314,40 @@ class DBXPlugin(Star):
                 "summary": parsed.get("summary", ""),
             }
 
+    async def _classify_join_request(self, comment: str) -> bool:
+        """使用 DeepSeek 判断加群验证消息是否来自正规渠道"""
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.deepseek_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-v4-pro",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "判断以下QQ加群验证消息是否来自正规渠道。"
+                                "正规渠道包括：GitHub项目页面、官网(dbxio.com)、软件关于页面、"
+                                "Linux.do社区、HelloGit/HelloGitHub、微信公众号等。"
+                                "只要用户表达了从这些渠道了解到项目的意图，就判定为正规。"
+                                "返回 JSON：{\"legitimate\": true} 或 {\"legitimate\": false}"
+                            ),
+                        },
+                        {"role": "user", "content": comment},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.1,
+                },
+                timeout=10,
+            )
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            parsed = json.loads(content)
+            return parsed.get("legitimate", False)
+
     @filter.command("dbx-changelog")
     async def changelog(self, event: AstrMessageEvent):
         """查看 DBX 指定版本的更新日志"""
