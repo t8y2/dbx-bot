@@ -348,6 +348,17 @@ class DBXPlugin(Star):
             parsed = json.loads(content)
             return parsed.get("legitimate", False)
 
+    async def _approve_join_request(self, event: AstrMessageEvent, flag: str, user_id: str):
+        """调用 OneBot API 同意加群申请"""
+        # event is AiocqhttpMessageEvent at runtime, which has .bot (CQHttp instance)
+        await event.bot.call_action(
+            "set_group_add_request",
+            flag=flag,
+            sub_type="add",
+            approve=True,
+            reason="自动审批：正规渠道来源",
+        )
+
     @filter.command("dbx-changelog")
     async def changelog(self, event: AstrMessageEvent):
         """查看 DBX 指定版本的更新日志"""
