@@ -27,6 +27,7 @@ SUPPORTED_DATABASES = [
 WELCOME_MSG = (
     " 欢迎加入 DBX 社区!\n"
     "  遇到问题? 提 Issue: https://github.com/t8y2/dbx/issues\n"
+    "  提交反馈? 发送 /dbx-issue <描述> 直接创建 Issue\n"
     "  欢迎贡献代码: https://github.com/t8y2/dbx/pulls\n"
-    "  发送 /dbx-help 查看可用命令"
+    "  发送 /dbx-help 查看所有可用命令"
 )
