@@ -21,8 +21,17 @@ _BUG_KEYWORDS_CN = ["报错", "异常", "错误", "崩溃", "闪退"]
 _FEATURE_KEYWORDS_CN = ["建议", "希望", "功能", "需求", "增加", "添加"]
 _WX_KEYWORDS = ["微信", "wx", "wechat", "公众号"]
 
-# 加群自动审批
-_AUTO_APPROVE_GROUP_ID = 1087880322
+# 机器人仅在此群工作
+_ALLOWED_GROUP_ID = 1087880322
+
+def _get_group_id(event: AstrMessageEvent):
+    """从事件中提取 group_id，私聊返回 None"""
+    raw = getattr(event.message_obj, "raw_message", None)
+    if isinstance(raw, dict):
+        gid = raw.get("group_id")
+        if gid:
+            return gid
+    return getattr(event.message_obj, "group_id", None)
 _LEGITIMATE_KEYWORDS = [
     "github",
     "dbxio",
@@ -52,6 +61,8 @@ class DBXPlugin(Star):
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_group_increase(self, event: AstrMessageEvent):
         """欢迎新成员"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         raw = getattr(event.message_obj, "raw_message", None)
         if not isinstance(raw, dict):
             return
@@ -72,7 +83,7 @@ class DBXPlugin(Star):
             return
 
         group_id = raw.get("group_id")
-        if group_id != _AUTO_APPROVE_GROUP_ID:
+        if group_id != _ALLOWED_GROUP_ID:
             return
 
         comment = raw.get("comment", "").strip()
@@ -109,6 +120,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-help")
     async def help_cmd(self, event: AstrMessageEvent):
         """显示所有可用命令"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         lines = ["DBX Bot 可用命令:\n"]
         for cmd, desc in COMMANDS.items():
             lines.append(f"  {cmd} — {desc}")
@@ -117,6 +130,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-latest")
     async def latest_release(self, event: AstrMessageEvent):
         """查询 DBX 最新版本"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         async with httpx.AsyncClient() as client:
             code, resp = await github_api.get_latest_release(client)
 
@@ -140,6 +155,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-star")
     async def repo_stats(self, event: AstrMessageEvent):
         """查看 DBX 项目统计"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         async with httpx.AsyncClient() as client:
             code, resp = await github_api.get_repo_stats(client, self.bot_pat)
 
@@ -176,6 +193,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-doc")
     async def search_doc(self, event: AstrMessageEvent):
         """搜索 DBX 文档"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         keyword = event.message_str.strip()
         if keyword.startswith("dbx-doc"):
             keyword = keyword[7:].strip()
@@ -211,6 +230,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-issue")
     async def create_issue(self, event: AstrMessageEvent):
         """提交 Issue 反馈，使用 LLM 自动分类并生成标题，提交前二次确认"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         description = event.message_str.strip()
         if description.startswith("dbx-issue"):
             description = description[9:].strip()
@@ -372,6 +393,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-changelog")
     async def changelog(self, event: AstrMessageEvent):
         """查看 DBX 指定版本的更新日志"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         tag = event.message_str.strip()
         if tag.startswith("dbx-changelog"):
             tag = tag[len("dbx-changelog"):].strip()
@@ -407,6 +430,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-support")
     async def check_support(self, event: AstrMessageEvent):
         """查询 DBX 是否支持某个数据库"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         keyword = event.message_str.strip()
         if keyword.startswith("dbx-support"):
             keyword = keyword[len("dbx-support"):].strip()
@@ -429,6 +454,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-faq")
     async def search_faq(self, event: AstrMessageEvent):
         """搜索已解决的 GitHub Issue"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         keyword = event.message_str.strip()
         if keyword.startswith("dbx-faq"):
             keyword = keyword[len("dbx-faq"):].strip()
@@ -459,6 +486,8 @@ class DBXPlugin(Star):
     @filter.command("dbx-admin")
     async def admin_cmd(self, event: AstrMessageEvent):
         """管理员运维命令"""
+        if _get_group_id(event) not in (None, _ALLOWED_GROUP_ID):
+            return
         sub = event.message_str.strip()
         if sub.startswith("dbx-admin"):
             sub = sub[len("dbx-admin"):].strip()
