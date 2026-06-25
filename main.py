@@ -19,7 +19,6 @@ from .constants import (
 
 _BUG_KEYWORDS_CN = ["报错", "异常", "错误", "崩溃", "闪退"]
 _FEATURE_KEYWORDS_CN = ["建议", "希望", "功能", "需求", "增加", "添加"]
-_WX_KEYWORDS = ["微信", "wx", "wechat", "公众号"]
 
 # 机器人仅在此群工作（可在 AstrBot WebUI 插件配置中修改）
 _LEGITIMATE_KEYWORDS = [
@@ -255,23 +254,17 @@ class DBXPlugin(Star):
 
         if result:
             title = result["title"]
-            source = result.get("source", "qq")
-            source_label = "wx-feedback" if source == "wx" else "qq-feedback"
-            source_name = "微信群反馈" if source == "wx" else "QQ 群反馈"
-            labels = result["labels"] + [source_label]
-            body = f"**来源**: {source_name} (by {sender})\n\n## AI 摘要\n{result['summary']}\n\n## 原始描述\n{description}"
+            labels = result["labels"] + ["qq-feedback"]
+            body = f"**来源**: QQ 群反馈 (by {sender})\n\n## AI 摘要\n{result['summary']}\n\n## 原始描述\n{description}"
             summary = result["summary"]
         else:
             desc_lower = description.lower()
             is_bug = any(kw in desc_lower for kw in _BUG_KEYWORDS_CN) or bool(re.search(r'\bbug\b', desc_lower, re.ASCII))
             is_feature = any(kw in desc_lower for kw in _FEATURE_KEYWORDS_CN) or bool(re.search(r'\bfeature\b', desc_lower, re.ASCII))
             prefix = "[Feature]" if (is_feature and not is_bug) else "[Bug]"
-            is_wx = any(kw in desc_lower for kw in _WX_KEYWORDS)
-            source_label = "wx-feedback" if is_wx else "qq-feedback"
-            source_name = "微信群反馈" if is_wx else "QQ 群反馈"
-            labels = (["enhancement"] if prefix == "[Feature]" else ["bug"]) + [source_label]
+            labels = (["enhancement"] if prefix == "[Feature]" else ["bug"]) + ["qq-feedback"]
             title = f"{prefix} {description[:80]}"
-            body = f"**来源**: {source_name} (by {sender})\n\n{description}"
+            body = f"**来源**: QQ 群反馈 (by {sender})\n\n{description}"
             summary = description[:100]
 
         issue_type = "bug" if "bug" in labels else "enhancement" if "enhancement" in labels else "unknown"
@@ -324,9 +317,8 @@ class DBXPlugin(Star):
                             "role": "system",
                             "content": (
                                 "你是一个 GitHub Issue 分类助手。根据用户的问题描述，判断是 Bug 还是功能建议，"
-                                "识别反馈来源平台（微信还是QQ），"
                                 "生成简洁的 Issue 标题（不超过 80 字），并提取关键摘要（不超过 200 字）。\n\n"
-                                "返回 JSON：{\"type\": \"bug\"|\"feature\", \"source\": \"wx\"|\"qq\", \"title\": \"标题\", \"summary\": \"摘要\"}"
+                                "返回 JSON：{\"type\": \"bug\"|\"feature\", \"title\": \"标题\", \"summary\": \"摘要\"}"
                             ),
                         },
                         {"role": "user", "content": description},
@@ -339,12 +331,10 @@ class DBXPlugin(Star):
             data = resp.json()
             content = data["choices"][0]["message"]["content"]
             parsed = json.loads(content)
-            source = parsed.get("source", "qq")
             return {
                 "title": parsed.get("title", description[:80]),
                 "labels": ["bug"] if parsed.get("type") == "bug" else ["enhancement"],
                 "summary": parsed.get("summary", ""),
-                "source": source,
             }
 
     async def _classify_join_request(self, comment: str) -> bool:
